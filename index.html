@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Hipp Registration</title>
+  <title>Hipp Registration — Attendance by Name + Birthday</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root{
@@ -15,42 +15,19 @@
       --success:#66cc66;
     }
 
-    /* Cloudy blue background */
     html,body{
       height:100%;
       margin:0;
-      font-family: "Trebuchet MS", "Comic Sans MS", Arial, sans-serif;
+      font-family: "Trebuchet MS", Arial, sans-serif;
       color:var(--muted);
       background:
         radial-gradient(1200px 600px at 10% 20%, rgba(255,255,255,0.18), rgba(255,255,255,0) 35%),
-        radial-gradient(900px 450px at 80% 30%, rgba(255,255,255,0.14), rgba(255,255,255,0) 30%),
-        radial-gradient(700px 350px at 50% 70%, rgba(255,255,255,0.12), rgba(255,255,255,0) 28%),
         linear-gradient(180deg, #dff4ff 0%, #cfeeff 40%, #bfe6ff 100%);
       background-attachment: fixed;
       background-size: cover;
-      animation: cloudShift 18s linear infinite;
     }
 
-    body::after{
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background-image:
-        linear-gradient(transparent 0%, rgba(255,255,255,0.02) 1%),
-        linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.02) 1%);
-      background-size: 3px 3px, 3px 3px;
-      opacity: 0.35;
-      mix-blend-mode: overlay;
-    }
-
-    @keyframes cloudShift {
-      0%   { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
-      50%  { background-position: 5% 2%, -5% -2%, 3% -1%, 0% 0%; }
-      100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
-    }
-
-    .container{max-width:1080px;margin:28px auto;padding:18px;}
+    .container{max-width:980px;margin:28px auto;padding:18px;}
     header{display:flex;align-items:center;gap:18px;justify-content:center;margin-bottom:12px}
     header img{height:72px;object-fit:contain}
     h1{margin:0;font-size:26px;color:#ff66b2;text-align:center}
@@ -180,7 +157,7 @@
       </form>
     </section>
 
-    <!-- Participants card -->
+    <!-- Participants card (hidden until authenticated and opened) -->
     <section id="participants" class="card tab-content" aria-hidden="true" style="display:none;margin-top:14px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <h2 style="margin:0;color:#ff66b2">Registered Participants</h2>
@@ -192,7 +169,6 @@
         </div>
       </div>
 
-      <!-- Date filter + column filters -->
       <div class="controls-row" style="margin-top:12px">
         <div>
           <label for="filterDate" style="font-weight:700;color:#3399ff;display:block">Show registrations for</label>
@@ -258,8 +234,8 @@
     /* -------------------------
        Storage keys & helpers
        ------------------------- */
-    const STORAGE_PREFIX = 'hipp_day_'; // per-day lists: hipp_day_YYYY-MM-DD
-    const INDEX_KEY = 'hipp_index_v1';  // participant index with attendance counts
+    const STORAGE_PREFIX = 'hipp_day_';
+    const INDEX_KEY = 'hipp_index_v1';
 
     function dayKey(dateStr){ return STORAGE_PREFIX + dateStr; }
     function saveDay(list, dateStr){ try { localStorage.setItem(dayKey(dateStr), JSON.stringify(list)); } catch(e){ console.error('saveDay failed', e); } }
@@ -290,21 +266,16 @@
       try{ localStorage.setItem(INDEX_KEY, JSON.stringify(idx)); } catch(e){ console.error('saveIndex failed', e); }
     }
 
-    // stable composite key generator: first|last|birthday
     function compositeKeyFor(reg){
       const first = (reg.firstName || '').toLowerCase().trim();
       const last = (reg.lastName || '').toLowerCase().trim();
-      const birthday = (reg.birthday || '').trim(); // YYYY-MM-DD
+      const birthday = (reg.birthday || '').trim();
       return `${first}|${last}|${birthday}`;
     }
 
-    // Rebuild index from all registrations using match rule: first + last + birthday
-    // Also updates each registration's participantId to the composite key so rows stay consistent.
     function rebuildIndexFromRegistrations(){
-      const map = {}; // compositeKey -> aggregated entry
-      // collect all day keys so we can update registrations in storage
+      const map = {};
       const dayKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX)).sort();
-      // first pass: aggregate
       dayKeys.forEach(k => {
         try{
           const arr = JSON.parse(localStorage.getItem(k) || '[]');
@@ -330,7 +301,6 @@
             map[composite].registrations.push(reg.registeredDate);
             map[composite].lastRegisteredDate = reg.registeredDate;
             if(reg.validated) map[composite].validatedCount = (map[composite].validatedCount || 0) + 1;
-            // keep latest contact info if present
             if(reg.email) map[composite].email = reg.email;
             if(reg.phone) map[composite].phone = reg.phone;
             if(reg.address) map[composite].address = reg.address;
@@ -338,7 +308,6 @@
         }catch(e){}
       });
 
-      // second pass: update stored registrations so each has participantId = composite
       dayKeys.forEach(k => {
         try{
           const arr = JSON.parse(localStorage.getItem(k) || '[]');
@@ -355,12 +324,10 @@
         }catch(e){}
       });
 
-      // save index keyed by composite participantId
       saveIndex(map);
       return map;
     }
 
-    // find participantId by matching first+last+birthday (returns composite key)
     function findParticipantIdByNameBirthday(firstName, lastName, birthday){
       const composite = `${(firstName||'').toLowerCase().trim()}|${(lastName||'').toLowerCase().trim()}|${(birthday||'').trim()}`;
       const idx = loadIndex();
@@ -370,8 +337,8 @@
     /* -------------------------
        DOM refs & state
        ------------------------- */
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
+    const tabs = Array.from(document.querySelectorAll('.tab'));
+    const tabContents = Array.from(document.querySelectorAll('.tab-content'));
     const form = document.getElementById('registrationForm');
     const birthdayInput = document.getElementById('birthday');
     const ageDisplay = document.getElementById('ageDisplay');
@@ -401,39 +368,123 @@
 
     const logoutBtn = document.getElementById('logoutBtn');
 
+    // login modal refs
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginModal = document.getElementById('loginModal');
+    const loginUser = document.getElementById('loginUser');
+    const loginPass = document.getElementById('loginPass');
+    const loginError = document.getElementById('loginError');
+    const loginSubmit = document.getElementById('loginSubmit');
+    const loginCancel = document.getElementById('loginCancel');
+
     // initialize counters
     const existing = loadAllDays();
     let counter = existing.length ? Math.max(...existing.map(p => p.id)) + 1 : 1;
 
-    /* -------------------------
-       Startup: rebuild index then render
-       ------------------------- */
     rebuildIndexFromRegistrations();
 
     /* -------------------------
-       Tabs
+       Tab switching with auth guard
        ------------------------- */
-    tabs.forEach(tab=>{
-      tab.addEventListener('click', ()=> switchTab(tab.dataset.tab));
-      tab.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.dataset.tab); }});
+    let currentTab = 'registration'; // track previous tab to detect "going back"
+    const ADMIN_USER = 'admin';
+    const ADMIN_PASS = 'Admin!Password1!';
+
+    function isAuthenticated(){ return sessionStorage.getItem('hipp_auth') === 'true'; }
+
+    function showLoginModal(forTab){
+      loginError.style.display = 'none';
+      loginUser.value = '';
+      loginPass.value = '';
+      loginOverlay.style.display = 'block';
+      loginModal.style.display = 'block';
+      loginOverlay.setAttribute('aria-hidden','false');
+      loginModal.setAttribute('aria-hidden','false');
+      loginUser.focus();
+      // store desired tab on modal element
+      loginModal.dataset.targetTab = forTab || 'participants';
+    }
+
+    function closeLoginModal(){
+      loginOverlay.style.display = 'none';
+      loginModal.style.display = 'none';
+      loginOverlay.setAttribute('aria-hidden','true');
+      loginModal.setAttribute('aria-hidden','true');
+      delete loginModal.dataset.targetTab;
+    }
+
+    function handleLoginAttempt(){
+      const u = (loginUser.value || '').trim();
+      const p = (loginPass.value || '');
+      if(u === ADMIN_USER && p === ADMIN_PASS){
+        sessionStorage.setItem('hipp_auth','true');
+        closeLoginModal();
+        // open the requested tab
+        const target = loginModal.dataset.targetTab || 'participants';
+        switchTab(target);
+        return;
+      }
+      loginError.textContent = 'Invalid credentials';
+      loginError.style.display = 'block';
+      loginPass.value = '';
+      loginPass.focus();
+    }
+
+    loginSubmit.addEventListener('click', handleLoginAttempt);
+    loginPass.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') handleLoginAttempt(); });
+    loginUser.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') loginPass.focus(); });
+
+    loginCancel.addEventListener('click', ()=>{
+      closeLoginModal();
+      switchTab('registration');
+    });
+    loginOverlay.addEventListener('click', ()=>{
+      closeLoginModal();
+      switchTab('registration');
     });
 
+    // single tab handler that enforces auth for participants
     function switchTab(id){
-      tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab === id));
-      tabContents.forEach(c=>{
+      // if trying to open participants and not authenticated, show login and do not switch
+      if(id === 'participants' && !isAuthenticated()){
+        showLoginModal('participants');
+        return;
+      }
+
+      // if switching back to registration from participants, auto-logout
+      if(id === 'registration' && currentTab === 'participants' && isAuthenticated()){
+        // logout silently (no popup) and hide logout button
+        sessionStorage.removeItem('hipp_auth');
+        logoutBtn.style.display = 'none';
+      }
+
+      // perform the visual switch
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+      tabContents.forEach(c => {
         if(c.id === id){
           c.style.display = ''; c.classList.add('active'); c.setAttribute('aria-hidden','false');
         } else {
           c.style.display = 'none'; c.classList.remove('active'); c.setAttribute('aria-hidden','true');
         }
       });
-      if(id === 'participants') {
-        // show logout button if authenticated
-        if(isAuthenticated()) logoutBtn.style.display = 'inline-block';
-        else logoutBtn.style.display = 'none';
+
+      // show/hide logout button when participants tab is active
+      if(id === 'participants'){
+        logoutBtn.style.display = isAuthenticated() ? 'inline-block' : 'none';
         renderTable();
+      } else {
+        // ensure participants content is hidden when not active
+        document.getElementById('participants').style.display = (isAuthenticated() && id === 'participants') ? '' : 'none';
       }
+
+      currentTab = id;
     }
+
+    // attach click & keyboard handlers to tabs
+    tabs.forEach(tab=>{
+      tab.addEventListener('click', ()=> switchTab(tab.dataset.tab));
+      tab.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.dataset.tab); }});
+    });
 
     /* -------------------------
        Age preview
@@ -527,29 +578,24 @@
       const age = calculateAge(new Date(birthday));
       const today = new Date().toISOString().split('T')[0];
 
-      // load today's list and index
       const list = loadDay(today);
       let idx = loadIndex();
 
-      // compute composite key and find existing participant by first+last+birthday
       const composite = `${firstName.toLowerCase()}|${lastName.toLowerCase()}|${birthday}`;
       let participantId = findParticipantIdByNameBirthday(firstName, lastName, birthday);
 
       if(participantId){
-        // existing participant: increment attendance and append today's date
-        idx = loadIndex(); // reload
+        idx = loadIndex();
         const p = idx[participantId];
         p.attendanceCount = (p.attendanceCount || 0) + 1;
         p.lastRegisteredDate = today;
         p.registrations = p.registrations || [];
         p.registrations.push(today);
-        // update contact info if changed
         p.email = email || p.email;
         p.phone = phoneCheck.digits || p.phone;
         p.address = address || p.address;
         saveIndex(idx);
       } else {
-        // new participant: create index entry using composite as participantId
         idx = loadIndex();
         participantId = composite;
         idx[participantId] = {
@@ -571,7 +617,6 @@
         saveIndex(idx);
       }
 
-      // create per-day registration entry (unique registration id)
       const registration = {
         id: counter++,
         participantId,
@@ -591,7 +636,6 @@
       list.push(registration);
       saveDay(list, today);
 
-      // rebuild index to ensure consistency across all days (and update participantId on rows)
       rebuildIndexFromRegistrations();
 
       form.reset();
@@ -600,6 +644,7 @@
       phoneMsg.style.display='none';
       showPopup('Registration recorded (attendance updated)', 'success');
 
+      // after registering, attempt to open participants tab (will require login)
       switchTab('participants');
     });
 
@@ -645,11 +690,8 @@
         return;
       }
       list.forEach(p => {
-        // Attendance is aggregated from index keyed by composite participantId
         const summary = idx[p.participantId] || {};
         const attendance = summary.attendanceCount || 1;
-
-        // show validation status per registration row only
         const validated = !!p.validated;
 
         const tr = document.createElement('tr');
@@ -691,24 +733,19 @@
        Actions: validate, remove, clear all
        ------------------------- */
     function validate(registrationId){
-      // Only mark the specific registration row as validated
       const allKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX));
       for(const k of allKeys){
         const arr = JSON.parse(localStorage.getItem(k) || '[]');
         const idxReg = arr.findIndex(x => x.id === registrationId);
         if(idxReg !== -1){
-          // mark only this registration
           arr[idxReg].validated = true;
           localStorage.setItem(k, JSON.stringify(arr));
-
-          // update index validatedCount for that composite participantId (but do NOT mark all rows validated)
           const pid = arr[idxReg].participantId;
           const idxStore = loadIndex();
           if(idxStore[pid]){
             idxStore[pid].validatedCount = (idxStore[pid].validatedCount || 0) + 1;
             saveIndex(idxStore);
           }
-
           renderTable();
           showPopup('Registration validated', 'success');
           return;
@@ -723,9 +760,8 @@
         let arr = JSON.parse(localStorage.getItem(k) || '[]');
         const idxReg = arr.findIndex(x => x.id === registrationId);
         if(idxReg !== -1){
-          const removed = arr.splice(idxReg,1)[0];
+          arr.splice(idxReg,1);
           localStorage.setItem(k, JSON.stringify(arr));
-          // After removal, rebuild index from all registrations to keep counts accurate
           rebuildIndexFromRegistrations();
           renderTable();
           return;
@@ -835,109 +871,30 @@
 
     overlay.addEventListener('click', closePopup);
 
-    // expose functions used by inline handlers
     window.validate = validate;
     window.removeParticipant = removeParticipant;
 
     /* -------------------------
-       Admin login protection for Registered Participants tab
+       Logout handling
        ------------------------- */
-    const ADMIN_USER = 'admin';
-    const ADMIN_PASS = 'Admin!Password1!';
-
-    const loginOverlay = document.getElementById('loginOverlay');
-    const loginModal = document.getElementById('loginModal');
-    const loginUser = document.getElementById('loginUser');
-    const loginPass = document.getElementById('loginPass');
-    const loginError = document.getElementById('loginError');
-    const loginSubmit = document.getElementById('loginSubmit');
-    const loginCancel = document.getElementById('loginCancel');
-
-    let pendingTabToOpen = null;
-
-    function isAuthenticated(){
-      return sessionStorage.getItem('hipp_auth') === 'true';
-    }
-
-    function showLoginModal(forTab){
-      pendingTabToOpen = forTab || 'participants';
-      loginError.style.display = 'none';
-      loginUser.value = '';
-      loginPass.value = '';
-      loginOverlay.style.display = 'block';
-      loginModal.style.display = 'block';
-      loginOverlay.setAttribute('aria-hidden','false');
-      loginModal.setAttribute('aria-hidden','false');
-      loginUser.focus();
-    }
-
-    function closeLoginModal(){
-      loginOverlay.style.display = 'none';
-      loginModal.style.display = 'none';
-      loginOverlay.setAttribute('aria-hidden','true');
-      loginModal.setAttribute('aria-hidden','true');
-      pendingTabToOpen = null;
-    }
-
-    function handleLoginAttempt(){
-      const u = (loginUser.value || '').trim();
-      const p = (loginPass.value || '');
-      if(u === ADMIN_USER && p === ADMIN_PASS){
-        sessionStorage.setItem('hipp_auth','true');
-        closeLoginModal();
-        // open the pending tab now that we're authenticated
-        if(pendingTabToOpen) switchTab(pendingTabToOpen);
-        return;
-      }
-      loginError.textContent = 'Invalid credentials';
-      loginError.style.display = 'block';
-      loginPass.value = '';
-      loginPass.focus();
-    }
-
-    loginSubmit.addEventListener('click', handleLoginAttempt);
-    loginPass.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') handleLoginAttempt(); });
-    loginUser.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') loginPass.focus(); });
-
-    loginCancel.addEventListener('click', ()=>{
-      closeLoginModal();
-      // optionally return to registration tab
-      switchTab('registration');
-    });
-
-    loginOverlay.addEventListener('click', ()=>{
-      closeLoginModal();
-      switchTab('registration');
-    });
-
-    // override tab click behavior to require auth for participants tab
-    tabs.forEach(tab=>{
-      tab.addEventListener('click', (ev)=>{
-        const target = tab.dataset.tab;
-        if(target === 'participants' && !isAuthenticated()){
-          ev.preventDefault();
-          showLoginModal('participants');
-          return;
-        }
-        // otherwise allow normal behavior (existing listeners will handle)
-      });
-    });
-
-    // logout handling
     function logoutAdmin(){
       sessionStorage.removeItem('hipp_auth');
       logoutBtn.style.display = 'none';
       // if currently on participants tab, switch back to registration
-      const activeTab = Array.from(tabs).find(t => t.classList.contains('active'));
+      const activeTab = tabs.find(t => t.classList.contains('active'));
       if(activeTab && activeTab.dataset.tab === 'participants'){
         switchTab('registration');
       }
-      showPopup('Logged out', 'success');
+      // silent logout (no popup) when triggered by navigation back to registration
     }
     window.logoutAdmin = logoutAdmin;
 
     logoutBtn.addEventListener('click', ()=>{
-      logoutAdmin();
+      // explicit logout via button shows confirmation popup
+      if(confirm('Logout admin?')) {
+        logoutAdmin();
+        showPopup('Logged out', 'success');
+      }
     });
 
     // show logout button if already authenticated on load
@@ -945,7 +902,7 @@
       logoutBtn.style.display = 'inline-block';
     }
 
-    // initial render
+    // initial render (registration visible by default)
     renderTable();
   </script>
 </body>
