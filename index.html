@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hipp Registration — Attendance by Name + Birthday</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --pink:#ffccff;
+      --pink-strong:#ff99cc;
+      --accent:#3399ff;
+      --muted:#666;
+      --card-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      --error:#d9534f;
+      --success:#66cc66;
+    }
+
+    /* Cloudy blue background */
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: "Trebuchet MS", "Comic Sans MS", Arial, sans-serif;
+      color:var(--muted);
+      background:
+        radial-gradient(1200px 600px at 10% 20%, rgba(255,255,255,0.18), rgba(255,255,255,0) 35%),
+        radial-gradient(900px 450px at 80% 30%, rgba(255,255,255,0.14), rgba(255,255,255,0) 30%),
+        radial-gradient(700px 350px at 50% 70%, rgba(255,255,255,0.12), rgba(255,255,255,0) 28%),
+        linear-gradient(180deg, #dff4ff 0%, #cfeeff 40%, #bfe6ff 100%);
+      background-attachment: fixed;
+      background-size: cover;
+      animation: cloudShift 18s linear infinite;
+    }
+
+    body::after{
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(transparent 0%, rgba(255,255,255,0.02) 1%),
+        linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.02) 1%);
+      background-size: 3px 3px, 3px 3px;
+      opacity: 0.35;
+      mix-blend-mode: overlay;
+    }
+
+    @keyframes cloudShift {
+      0%   { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
+      50%  { background-position: 5% 2%, -5% -2%, 3% -1%, 0% 0%; }
+      100% { background-position: 0% 0%, 0% 0%, 0% 0%, 0% 0%; }
+    }
+
+    .container{max-width:1080px;margin:28px auto;padding:18px;}
+    header{display:flex;align-items:center;gap:18px;justify-content:center;margin-bottom:12px}
+    header img{height:72px;object-fit:contain}
+    h1{margin:0;font-size:26px;color:#ff66b2;text-align:center}
+
+    .tabs{display:flex;justify-content:center;gap:8px;margin:18px 0}
+    .tab{
+      padding:10px 18px;border-radius:12px 12px 0 0;background:var(--pink);cursor:pointer;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.06);
+    }
+    .tab.active{background:var(--pink-strong);transform:translateY(-2px)}
+
+    .card{background:rgba(255,255,255,0.95);border:2px solid rgba(255,209,220,0.9);border-radius:14px;padding:18px;box-shadow:var(--card-shadow);max-width:100%}
+    form .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1;min-width:140px}
+    label{display:block;margin-top:10px;font-weight:700;color:var(--accent)}
+    input[type="text"],input[type="email"],input[type="tel"],input[type="date"]{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #dcdcdc;font-size:14px;box-sizing:border-box;background:rgba(255,255,255,0.98);
+    }
+    .small{max-width:90px}
+    .actions{display:flex;gap:12px;align-items:center;margin-top:14px}
+    button.primary{background:var(--pink);border:none;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:800}
+    button.primary:hover{background:var(--pink-strong)}
+    button.ghost{background:transparent;border:2px solid rgba(255,209,220,0.9);padding:8px 12px;border-radius:10px;cursor:pointer}
+
+    .table-wrap{overflow:auto;margin-top:12px}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden}
+    th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:center;font-size:13px}
+    th{background:#ffebf7;color:#444;font-weight:700}
+    tr:last-child td{border-bottom:none}
+    .status.valid{color:var(--success);font-weight:700}
+    .status.not{color:var(--error);font-weight:700}
+
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:1200}
+    .popup{display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#fff;padding:18px;border-radius:12px;z-index:1300;min-width:260px;box-shadow:0 10px 30px rgba(0,0,0,0.18);text-align:center}
+    .popup.success{border:4px solid var(--success)}
+    .popup.error{border:4px solid var(--error)}
+    .popup p{margin:8px 0;font-weight:700}
+    .popup button{margin-top:10px;padding:8px 12px;border-radius:8px;border:none;background:var(--pink);cursor:pointer}
+
+    @media (max-width:720px){
+      .row{flex-direction:column}
+      .small{max-width:100%}
+      header img{height:56px}
+    }
+
+    .controls-row{display:flex;gap:12px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+    .controls-row input[type="date"]{padding:8px;border-radius:6px;border:1px solid #ddd}
+    .controls-row input[type="text"]{padding:8px;border-radius:6px;border:1px solid #ddd}
+
+    .field-error{color:var(--error);font-size:13px;margin-top:6px}
+    .field-success{color:var(--success);font-size:13px;margin-top:6px}
+  </style>
+
+  <!-- SheetJS for XLSX generation -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="hipp-logo.png" alt="Hipp Logo" id="logo">
+    </header>
+
+    <h1>Hipp Participant System</h1>
+
+    <div class="tabs" role="tablist" aria-label="Main tabs">
+      <div class="tab active" data-tab="registration" role="tab" tabindex="0">Registration</div>
+      <div class="tab" data-tab="participants" role="tab" tabindex="0">Registered Participants</div>
+    </div>
+
+    <!-- Registration card -->
+    <section id="registration" class="card tab-content active" aria-hidden="false">
+      <form id="registrationForm" autocomplete="off" novalidate>
+        <div class="row">
+          <div class="col">
+            <label for="firstName">First Name</label>
+            <input id="firstName" type="text" required />
+          </div>
+          <div class="col">
+            <label for="lastName">Last Name</label>
+            <input id="lastName" type="text" required />
+          </div>
+          <div class="col small">
+            <label for="middleInitial">Middle Initial</label>
+            <input id="middleInitial" type="text" maxlength="1" />
+          </div>
+          <div class="col small">
+            <label for="suffix">Suffix</label>
+            <input id="suffix" type="text" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="birthday">Birthday</label>
+            <input id="birthday" type="date" required />
+            <div id="ageDisplay" style="margin-top:6px;color:#ff66b2;font-weight:700"></div>
+          </div>
+          <div class="col">
+            <label for="address">Address</label>
+            <input id="address" type="text" required />
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <label for="email">Email</label>
+            <input id="email" type="email" required />
+            <div id="emailMsg" class="field-error" style="display:none"></div>
+          </div>
+          <div class="col">
+            <label for="phone">Phone Number</label>
+            <input id="phone" type="tel" required inputmode="numeric" pattern="[0-9]*" />
+            <div id="phoneMsg" class="field-error" style="display:none"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit">Register</button>
+          <button class="ghost" type="button" id="clearBtn">Clear</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Participants card -->
+    <section id="participants" class="card tab-content" aria-hidden="true" style="display:none;margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0;color:#ff66b2">Registered Participants</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="primary" id="downloadTodayBtn">Download Today's Registrations</button>
+          <button class="ghost" id="downloadFilteredBtn">Download Filtered Results</button>
+          <button class="ghost" id="clearAllBtn">Clear All</button>
+        </div>
+      </div>
+
+      <!-- Date filter + column filters -->
+      <div class="controls-row" style="margin-top:12px">
+        <div>
+          <label for="filterDate" style="font-weight:700;color:#3399ff;display:block">Show registrations for</label>
+          <input type="date" id="filterDate" />
+          <button id="showAllBtn" style="margin-left:8px;padding:6px 10px">All days</button>
+        </div>
+
+        <div style="flex:1;min-width:320px">
+          <label style="font-weight:700;color:#3399ff;display:block">Column filters</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="searchFirst" placeholder="First name" style="padding:6px;border-radius:6px" />
+            <input id="searchLast" placeholder="Last name" style="padding:6px;border-radius:6px" />
+            <input id="searchAge" placeholder="Age" style="padding:6px;border-radius:6px;width:80px" />
+            <input id="searchEmail" placeholder="Email" style="padding:6px;border-radius:6px" />
+            <input id="searchPhone" placeholder="Phone" style="padding:6px;border-radius:6px" />
+          </div>
+        </div>
+
+        <div style="margin-left:auto">
+          <button id="clearFilters" style="padding:6px 10px">Clear filters</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="participantsTable" aria-live="polite">
+          <thead>
+            <tr>
+              <th>ID</th><th>First</th><th>Last</th><th>MI</th><th>Suffix</th>
+              <th>Birthday</th><th>Age</th><th>Address</th><th>Email</th><th>Phone</th>
+              <th>Attendance</th><th>Status</th><th>Action</th><th>Registered</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div id="overlay" class="overlay" aria-hidden="true"></div>
+  <div id="popup" class="popup" role="dialog" aria-modal="true" aria-hidden="true">
+    <p id="popupMessage"></p>
+    <button onclick="closePopup()">OK</button>
+  </div>
+
+  <script>
+    /* -------------------------
+       Storage keys & helpers
+       ------------------------- */
+    const STORAGE_PREFIX = 'hipp_day_'; // per-day lists: hipp_day_YYYY-MM-DD
+    const INDEX_KEY = 'hipp_index_v1';  // participant index with attendance counts
+
+    function dayKey(dateStr){ return STORAGE_PREFIX + dateStr; }
+    function saveDay(list, dateStr){ try { localStorage.setItem(dayKey(dateStr), JSON.stringify(list)); } catch(e){ console.error('saveDay failed', e); } }
+    function loadDay(dateStr){ try { const raw = localStorage.getItem(dayKey(dateStr)); return raw ? JSON.parse(raw) : []; } catch(e){ console.error('loadDay failed', e); return []; } }
+
+    function loadAllDays(){
+      const out = [];
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(STORAGE_PREFIX)){
+          try{
+            const arr = JSON.parse(localStorage.getItem(k));
+            if(Array.isArray(arr)) out.push(...arr);
+          }catch(e){}
+        }
+      }
+      out.sort((a,b) => (a.registeredDate === b.registeredDate) ? (a.id - b.id) : (a.registeredDate < b.registeredDate ? -1 : 1));
+      return out;
+    }
+
+    function loadIndex(){
+      try{
+        const raw = localStorage.getItem(INDEX_KEY);
+        return raw ? JSON.parse(raw) : {};
+      }catch(e){ console.error('loadIndex failed', e); return {}; }
+    }
+    function saveIndex(idx){
+      try{ localStorage.setItem(INDEX_KEY, JSON.stringify(idx)); } catch(e){ console.error('saveIndex failed', e); }
+    }
+
+    // stable composite key generator: first|last|birthday
+    function compositeKeyFor(reg){
+      const first = (reg.firstName || '').toLowerCase().trim();
+      const last = (reg.lastName || '').toLowerCase().trim();
+      const birthday = (reg.birthday || '').trim(); // YYYY-MM-DD
+      return `${first}|${last}|${birthday}`;
+    }
+
+    // Rebuild index from all registrations using match rule: first + last + birthday
+    // Also updates each registration's participantId to the composite key so rows stay consistent.
+    function rebuildIndexFromRegistrations(){
+      const map = {}; // compositeKey -> aggregated entry
+      // collect all day keys so we can update registrations in storage
+      const dayKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX)).sort();
+      // first pass: aggregate
+      dayKeys.forEach(k => {
+        try{
+          const arr = JSON.parse(localStorage.getItem(k) || '[]');
+          arr.forEach(reg => {
+            const composite = compositeKeyFor(reg);
+            if(!map[composite]){
+              map[composite] = {
+                participantId: composite,
+                firstName: reg.firstName || '',
+                lastName: reg.lastName || '',
+                birthday: reg.birthday || '',
+                age: reg.age || '',
+                address: reg.address || '',
+                email: reg.email || '',
+                phone: reg.phone || '',
+                attendanceCount: 0,
+                registrations: [],
+                lastRegisteredDate: null,
+                validatedCount: 0
+              };
+            }
+            map[composite].attendanceCount += 1;
+            map[composite].registrations.push(reg.registeredDate);
+            map[composite].lastRegisteredDate = reg.registeredDate;
+            if(reg.validated) map[composite].validatedCount = (map[composite].validatedCount || 0) + 1;
+            // keep latest contact info if present
+            if(reg.email) map[composite].email = reg.email;
+            if(reg.phone) map[composite].phone = reg.phone;
+            if(reg.address) map[composite].address = reg.address;
+          });
+        }catch(e){}
+      });
+
+      // second pass: update stored registrations so each has participantId = composite
+      dayKeys.forEach(k => {
+        try{
+          const arr = JSON.parse(localStorage.getItem(k) || '[]');
+          let changed = false;
+          const updated = arr.map(reg => {
+            const composite = compositeKeyFor(reg);
+            if(reg.participantId !== composite){
+              reg.participantId = composite;
+              changed = true;
+            }
+            return reg;
+          });
+          if(changed) localStorage.setItem(k, JSON.stringify(updated));
+        }catch(e){}
+      });
+
+      // save index keyed by composite participantId
+      saveIndex(map);
+      return map;
+    }
+
+    // find participantId by matching first+last+birthday (returns composite key)
+    function findParticipantIdByNameBirthday(firstName, lastName, birthday){
+      const composite = `${(firstName||'').toLowerCase().trim()}|${(lastName||'').toLowerCase().trim()}|${(birthday||'').trim()}`;
+      const idx = loadIndex();
+      return idx[composite] ? composite : null;
+    }
+
+    /* -------------------------
+       DOM refs & state
+       ------------------------- */
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    const form = document.getElementById('registrationForm');
+    const birthdayInput = document.getElementById('birthday');
+    const ageDisplay = document.getElementById('ageDisplay');
+    const participantsTbody = document.querySelector('#participantsTable tbody');
+    const overlay = document.getElementById('overlay');
+    const popup = document.getElementById('popup');
+    const popupMessage = document.getElementById('popupMessage');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const filterDate = document.getElementById('filterDate');
+    const showAllBtn = document.getElementById('showAllBtn');
+    const searchFirst = document.getElementById('searchFirst');
+    const searchLast = document.getElementById('searchLast');
+    const searchAge = document.getElementById('searchAge');
+    const searchEmail = document.getElementById('searchEmail');
+    const searchPhone = document.getElementById('searchPhone');
+    const clearFilters = document.getElementById('clearFilters');
+
+    const emailInput = document.getElementById('email');
+    const emailMsg = document.getElementById('emailMsg');
+    const phoneInput = document.getElementById('phone');
+    const phoneMsg = document.getElementById('phoneMsg');
+
+    const downloadTodayBtn = document.getElementById('downloadTodayBtn');
+    const downloadFilteredBtn = document.getElementById('downloadFilteredBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+
+    // initialize counters
+    const existing = loadAllDays();
+    let counter = existing.length ? Math.max(...existing.map(p => p.id)) + 1 : 1;
+
+    /* -------------------------
+       Startup: rebuild index then render
+       ------------------------- */
+    rebuildIndexFromRegistrations();
+
+    /* -------------------------
+       Tabs
+       ------------------------- */
+    tabs.forEach(tab=>{
+      tab.addEventListener('click', ()=> switchTab(tab.dataset.tab));
+      tab.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.dataset.tab); }});
+    });
+
+    function switchTab(id){
+      tabs.forEach(t=>t.classList.toggle('active', t.dataset.tab === id));
+      tabContents.forEach(c=>{
+        if(c.id === id){
+          c.style.display = ''; c.classList.add('active'); c.setAttribute('aria-hidden','false');
+        } else {
+          c.style.display = 'none'; c.classList.remove('active'); c.setAttribute('aria-hidden','true');
+        }
+      });
+      if(id === 'participants') renderTable();
+    }
+
+    /* -------------------------
+       Age preview
+       ------------------------- */
+    birthdayInput.addEventListener('change', ()=>{
+      const val = birthdayInput.value;
+      if(!val){ ageDisplay.textContent = ''; return; }
+      const age = calculateAge(new Date(val));
+      ageDisplay.textContent = `Age: ${age} year${age===1?'':'s'} old`;
+    });
+
+    function calculateAge(birthday){
+      if(!(birthday instanceof Date) || isNaN(birthday)) return '';
+      const today = new Date();
+      let age = today.getFullYear() - birthday.getFullYear();
+      const m = today.getMonth() - birthday.getMonth();
+      if(m < 0 || (m === 0 && today.getDate() < birthday.getDate())) age--;
+      return age;
+    }
+
+    /* -------------------------
+       Email & phone validation
+       ------------------------- */
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const allowedDomains = ['gmail.com','yahoo.com','yahoo.com.ph','outlook.com','hotmail.com','live.com','icloud.com','protonmail.com','mail.com'];
+
+    function validateEmailStrict(email){
+      if(!emailRegex.test(email)) return { ok:false, reason:'Invalid email format' };
+      const domain = email.split('@').pop().toLowerCase();
+      if(!allowedDomains.includes(domain)) return { ok:false, reason:`Please use common providers like gmail.com, yahoo.com, outlook.com, etc.` };
+      return { ok:true };
+    }
+
+    function validatePhoneDigits(phone){
+      if(!phone) return { ok:false, reason:'Phone is required' };
+      const digits = phone.replace(/\D/g,'');
+      if(digits.length < 7 || digits.length > 15) return { ok:false, reason:'Phone must be 7–15 digits' };
+      return { ok:true, digits };
+    }
+
+    emailInput.addEventListener('input', ()=>{
+      const v = emailInput.value.trim();
+      if(!v){ emailMsg.style.display='none'; return; }
+      const res = validateEmailStrict(v);
+      if(!res.ok){ emailMsg.textContent = res.reason; emailMsg.style.display='block'; emailMsg.className='field-error'; }
+      else { emailMsg.textContent = 'Looks good'; emailMsg.style.display='block'; emailMsg.className='field-success'; }
+    });
+
+    phoneInput.addEventListener('input', ()=>{
+      const cleaned = phoneInput.value.replace(/\D/g,'');
+      if(phoneInput.value !== cleaned) phoneInput.value = cleaned;
+      if(!cleaned){ phoneMsg.style.display='none'; return; }
+      const res = validatePhoneDigits(cleaned);
+      if(!res.ok){ phoneMsg.textContent = res.reason; phoneMsg.style.display='block'; phoneMsg.className='field-error'; }
+      else { phoneMsg.textContent = 'Looks good'; phoneMsg.style.display='block'; phoneMsg.className='field-success'; }
+    });
+    phoneInput.addEventListener('paste', (e)=>{
+      e.preventDefault();
+      const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+      const cleaned = text.replace(/\D/g,'');
+      document.execCommand('insertText', false, cleaned);
+    });
+
+    /* -------------------------
+       Registration behavior (match by first+last+birthday)
+       ------------------------- */
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName = document.getElementById('lastName').value.trim();
+      const middleInitial = document.getElementById('middleInitial').value.trim();
+      const suffix = document.getElementById('suffix').value.trim();
+      const birthday = document.getElementById('birthday').value;
+      const address = document.getElementById('address').value.trim();
+      const email = emailInput.value.trim();
+      const rawPhone = phoneInput.value || '';
+      const cleanedPhone = rawPhone.replace(/\D/g,'');
+      phoneInput.value = cleanedPhone;
+
+      if(!firstName || !lastName || !birthday || !email || !cleanedPhone){
+        showPopup('Please fill required fields', 'error');
+        return;
+      }
+
+      const emailCheck = validateEmailStrict(email);
+      if(!emailCheck.ok){ showPopup(emailCheck.reason, 'error'); return; }
+
+      const phoneCheck = validatePhoneDigits(cleanedPhone);
+      if(!phoneCheck.ok){ showPopup(phoneCheck.reason, 'error'); return; }
+
+      const age = calculateAge(new Date(birthday));
+      const today = new Date().toISOString().split('T')[0];
+
+      // load today's list and index
+      const list = loadDay(today);
+      let idx = loadIndex();
+
+      // compute composite key and find existing participant by first+last+birthday
+      const composite = `${firstName.toLowerCase()}|${lastName.toLowerCase()}|${birthday}`;
+      let participantId = findParticipantIdByNameBirthday(firstName, lastName, birthday);
+
+      if(participantId){
+        // existing participant: increment attendance and append today's date
+        idx = loadIndex(); // reload
+        const p = idx[participantId];
+        p.attendanceCount = (p.attendanceCount || 0) + 1;
+        p.lastRegisteredDate = today;
+        p.registrations = p.registrations || [];
+        p.registrations.push(today);
+        // update contact info if changed
+        p.email = email || p.email;
+        p.phone = phoneCheck.digits || p.phone;
+        p.address = address || p.address;
+        saveIndex(idx);
+      } else {
+        // new participant: create index entry using composite as participantId
+        idx = loadIndex();
+        participantId = composite;
+        idx[participantId] = {
+          participantId,
+          firstName,
+          lastName,
+          middleInitial,
+          suffix,
+          birthday,
+          age,
+          address,
+          email,
+          phone: phoneCheck.digits || cleanedPhone,
+          attendanceCount: 1,
+          registrations: [today],
+          lastRegisteredDate: today,
+          validatedCount: 0
+        };
+        saveIndex(idx);
+      }
+
+      // create per-day registration entry (unique registration id)
+      const registration = {
+        id: counter++,
+        participantId,
+        firstName,
+        lastName,
+        middleInitial,
+        suffix,
+        birthday,
+        age,
+        address,
+        email,
+        phone: phoneCheck.digits || cleanedPhone,
+        validated: false,
+        registeredDate: today
+      };
+
+      list.push(registration);
+      saveDay(list, today);
+
+      // rebuild index to ensure consistency across all days (and update participantId on rows)
+      rebuildIndexFromRegistrations();
+
+      form.reset();
+      ageDisplay.textContent = '';
+      emailMsg.style.display='none';
+      phoneMsg.style.display='none';
+      showPopup('Registration recorded (attendance updated)', 'success');
+
+      switchTab('participants');
+    });
+
+    clearBtn.addEventListener('click', ()=>{ form.reset(); ageDisplay.textContent=''; emailMsg.style.display='none'; phoneMsg.style.display='none'; });
+
+    /* -------------------------
+       Filtering & rendering
+       ------------------------- */
+    function norm(v){ return (v === null || v === undefined) ? '' : String(v).toLowerCase().trim(); }
+
+    function getFilteredList(){
+      const dateVal = filterDate.value;
+      let list = dateVal ? loadDay(dateVal) : loadAllDays();
+
+      const fFirst = norm(searchFirst.value);
+      const fLast = norm(searchLast.value);
+      const fAge = norm(searchAge.value);
+      const fEmail = norm(searchEmail.value);
+      const fPhone = norm(searchPhone.value);
+
+      const filtered = list.filter(p => {
+        if(fFirst && !norm(p.firstName).includes(fFirst)) return false;
+        if(fLast && !norm(p.lastName).includes(fLast)) return false;
+        if(fAge){
+          if(!String(p.age).includes(fAge)) return false;
+        }
+        if(fEmail && !norm(p.email).includes(fEmail)) return false;
+        if(fPhone && !norm(p.phone).includes(fPhone)) return false;
+        return true;
+      });
+
+      return filtered;
+    }
+
+    function renderTable(){
+      const list = getFilteredList();
+      const idx = loadIndex();
+      participantsTbody.innerHTML = '';
+      if(!list.length){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="14" style="padding:18px;color:#777">No participants match the filters</td>`;
+        participantsTbody.appendChild(tr);
+        return;
+      }
+      list.forEach(p => {
+        // Attendance is aggregated from index keyed by composite participantId
+        const summary = idx[p.participantId] || {};
+        const attendance = summary.attendanceCount || 1;
+
+        // show validation status per registration row only
+        const validated = !!p.validated;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.id}</td>
+          <td>${escapeHtml(p.firstName)}</td>
+          <td>${escapeHtml(p.lastName)}</td>
+          <td>${escapeHtml(p.middleInitial || '')}</td>
+          <td>${escapeHtml(p.suffix || '')}</td>
+          <td>${p.birthday}</td>
+          <td>${p.age}</td>
+          <td>${escapeHtml(p.address)}</td>
+          <td>${escapeHtml(p.email)}</td>
+          <td>${escapeHtml(p.phone)}</td>
+          <td>${attendance}</td>
+          <td class="status ${validated ? 'valid' : 'not'}">${validated ? 'Validated' : 'Not Validated'}</td>
+          <td>${validated ? '' : `<button onclick="validate(${p.id})">Validate</button>`} <button onclick="removeParticipant(${p.id})" style="margin-left:6px">Remove</button></td>
+          <td>${p.registeredDate}</td>
+        `;
+        participantsTbody.appendChild(tr);
+      });
+    }
+
+    [filterDate, searchFirst, searchLast, searchAge, searchEmail, searchPhone].forEach(el => {
+      el.addEventListener('input', () => renderTable());
+    });
+    showAllBtn.addEventListener('click', () => { filterDate.value = ''; renderTable(); });
+    clearFilters.addEventListener('click', () => {
+      filterDate.value = '';
+      searchFirst.value = '';
+      searchLast.value = '';
+      searchAge.value = '';
+      searchEmail.value = '';
+      searchPhone.value = '';
+      renderTable();
+    });
+
+    /* -------------------------
+       Actions: validate, remove, clear all
+       ------------------------- */
+    function validate(registrationId){
+      // Only mark the specific registration row as validated
+      const allKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX));
+      for(const k of allKeys){
+        const arr = JSON.parse(localStorage.getItem(k) || '[]');
+        const idxReg = arr.findIndex(x => x.id === registrationId);
+        if(idxReg !== -1){
+          // mark only this registration
+          arr[idxReg].validated = true;
+          localStorage.setItem(k, JSON.stringify(arr));
+
+          // update index validatedCount for that composite participantId (but do NOT mark all rows validated)
+          const pid = arr[idxReg].participantId;
+          const idxStore = loadIndex();
+          if(idxStore[pid]){
+            idxStore[pid].validatedCount = (idxStore[pid].validatedCount || 0) + 1;
+            saveIndex(idxStore);
+          }
+
+          renderTable();
+          showPopup('Registration validated', 'success');
+          return;
+        }
+      }
+    }
+
+    function removeParticipant(registrationId){
+      if(!confirm('Remove this registration? This will decrement the participant attendance count.')) return;
+      const allKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX));
+      for(const k of allKeys){
+        let arr = JSON.parse(localStorage.getItem(k) || '[]');
+        const idxReg = arr.findIndex(x => x.id === registrationId);
+        if(idxReg !== -1){
+          const removed = arr.splice(idxReg,1)[0];
+          localStorage.setItem(k, JSON.stringify(arr));
+          // After removal, rebuild index from all registrations to keep counts accurate
+          rebuildIndexFromRegistrations();
+          renderTable();
+          return;
+        }
+      }
+    }
+
+    function clearAll(){
+      if(!confirm('This will remove all participants permanently. Continue?')) return;
+      const keys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX));
+      keys.forEach(k => localStorage.removeItem(k));
+      localStorage.removeItem(INDEX_KEY);
+      counter = 1;
+      renderTable();
+      showPopup('All participants cleared', 'success');
+    }
+
+    clearAllBtn.addEventListener('click', clearAll);
+
+    /* -------------------------
+       XML & XLSX generation + downloads
+       ------------------------- */
+    function generateXML(list){
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<participants>\n';
+      list.forEach(p=>{
+        xml += `  <participant>\n`;
+        xml += `    <id>${p.id}</id>\n`;
+        xml += `    <participantId>${p.participantId}</participantId>\n`;
+        xml += `    <firstName>${escapeXml(p.firstName)}</firstName>\n`;
+        xml += `    <lastName>${escapeXml(p.lastName)}</lastName>\n`;
+        xml += `    <middleInitial>${escapeXml(p.middleInitial||'')}</middleInitial>\n`;
+        xml += `    <suffix>${escapeXml(p.suffix||'')}</suffix>\n`;
+        xml += `    <birthday>${p.birthday}</birthday>\n`;
+        xml += `    <age>${p.age}</age>\n`;
+        xml += `    <address>${escapeXml(p.address)}</address>\n`;
+        xml += `    <email>${escapeXml(p.email)}</email>\n`;
+        xml += `    <phone>${escapeXml(p.phone)}</phone>\n`;
+        xml += `    <validated>${p.validated ? 'true' : 'false'}</validated>\n`;
+        xml += `    <registeredDate>${p.registeredDate}</registeredDate>\n`;
+        xml += `  </participant>\n`;
+      });
+      xml += '</participants>';
+      return xml;
+    }
+
+    function escapeXml(str){ if(!str) return ''; return String(str).replace(/[<>&'"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;',"'":'&apos;','"':'&quot;'})[c]); }
+    function escapeHtml(str){ if(!str) return ''; return String(str).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
+
+    function triggerDownload(blob, filename){
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+    }
+
+    function generateXLSXAndDownload(list, filename){
+      const ws_data = [
+        ['ID','ParticipantId','First Name','Last Name','Middle Initial','Suffix','Birthday','Age','Address','Email','Phone','Validated','Registered Date']
+      ];
+      list.forEach(p=>{
+        ws_data.push([p.id,p.participantId,p.firstName,p.lastName,p.middleInitial||'',p.suffix||'',p.birthday,p.age,p.address,p.email,p.phone,p.validated?'Yes':'No',p.registeredDate]);
+      });
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([wbout], {type:'application/octet-stream'});
+      triggerDownload(blob, filename);
+    }
+
+    downloadTodayBtn.addEventListener('click', ()=>{
+      const today = new Date().toISOString().split('T')[0];
+      const list = loadDay(today);
+      if(!list.length){ showPopup("No registrations for today", "error"); return; }
+      const xml = generateXML(list);
+      triggerDownload(new Blob([xml], {type:'application/xml'}), `${today}-registrations.xml`);
+      generateXLSXAndDownload(list, `${today}-registrations.xlsx`);
+    });
+
+    downloadFilteredBtn.addEventListener('click', ()=>{
+      const list = getFilteredList();
+      if(!list.length){ showPopup("No filtered results to download", "error"); return; }
+      const dateSuffix = (filterDate.value) ? filterDate.value : new Date().toISOString().split('T')[0];
+      const xml = generateXML(list);
+      triggerDownload(new Blob([xml], {type:'application/xml'}), `${dateSuffix}-filtered-registrations.xml`);
+      generateXLSXAndDownload(list, `${dateSuffix}-filtered-registrations.xlsx`);
+    });
+
+    /* -------------------------
+       Popup & utilities
+       ------------------------- */
+    function showPopup(message, type='success'){
+      popupMessage.textContent = message;
+      popup.className = 'popup ' + (type==='error' ? 'error' : 'success');
+      overlay.style.display = 'block';
+      popup.style.display = 'block';
+      overlay.setAttribute('aria-hidden','false');
+      popup.setAttribute('aria-hidden','false');
+    }
+
+    function closePopup(){
+      overlay.style.display = 'none';
+      popup.style.display = 'none';
+      overlay.setAttribute('aria-hidden','true');
+      popup.setAttribute('aria-hidden','true');
+    }
+
+    overlay.addEventListener('click', closePopup);
+
+    // expose functions used by inline handlers
+    window.validate = validate;
+    window.removeParticipant = removeParticipant;
+
+    // initial render
+    renderTable();
+  </script>
+</body>
+</html>
