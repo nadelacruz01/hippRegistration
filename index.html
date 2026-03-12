@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Hipp Registration — Attendance by Name + Birthday</title>
+  <title>Hipp Registration</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     :root{
@@ -27,7 +27,7 @@
       background-size: cover;
     }
 
-    .container{max-width:980px;margin:28px auto;padding:18px;}
+    .container{max-width:1080px;margin:28px auto;padding:18px;}
     header{display:flex;align-items:center;gap:18px;justify-content:center;margin-bottom:12px}
     header img{height:72px;object-fit:contain}
     h1{margin:0;font-size:26px;color:#ff66b2;text-align:center}
@@ -273,6 +273,7 @@
       return `${first}|${last}|${birthday}`;
     }
 
+    // Rebuild index from all registrations (counts attendance by actual rows)
     function rebuildIndexFromRegistrations(){
       const map = {};
       const dayKeys = Object.keys(localStorage).filter(k => k && k.startsWith(STORAGE_PREFIX)).sort();
@@ -308,6 +309,7 @@
         }catch(e){}
       });
 
+      // update stored registrations so each has participantId = composite
       dayKeys.forEach(k => {
         try{
           const arr = JSON.parse(localStorage.getItem(k) || '[]');
@@ -328,10 +330,17 @@
       return map;
     }
 
+    // Robust lookup: scan all stored registrations for a matching first+last+birthday
     function findParticipantIdByNameBirthday(firstName, lastName, birthday){
       const composite = `${(firstName||'').toLowerCase().trim()}|${(lastName||'').toLowerCase().trim()}|${(birthday||'').trim()}`;
-      const idx = loadIndex();
-      return idx[composite] ? composite : null;
+      // scan all registrations (not only index) to ensure we detect participants even if index is stale
+      const all = loadAllDays();
+      const found = all.find(r => {
+        return (r.firstName || '').toLowerCase().trim() === (firstName||'').toLowerCase().trim()
+          && (r.lastName || '').toLowerCase().trim() === (lastName||'').toLowerCase().trim()
+          && (r.birthday || '').trim() === (birthday||'').trim();
+      });
+      return found ? composite : null;
     }
 
     /* -------------------------
@@ -401,7 +410,6 @@
       loginOverlay.setAttribute('aria-hidden','false');
       loginModal.setAttribute('aria-hidden','false');
       loginUser.focus();
-      // store desired tab on modal element
       loginModal.dataset.targetTab = forTab || 'participants';
     }
 
@@ -419,7 +427,6 @@
       if(u === ADMIN_USER && p === ADMIN_PASS){
         sessionStorage.setItem('hipp_auth','true');
         closeLoginModal();
-        // open the requested tab
         const target = loginModal.dataset.targetTab || 'participants';
         switchTab(target);
         return;
@@ -453,7 +460,6 @@
 
       // if switching back to registration from participants, auto-logout
       if(id === 'registration' && currentTab === 'participants' && isAuthenticated()){
-        // logout silently (no popup) and hide logout button
         sessionStorage.removeItem('hipp_auth');
         logoutBtn.style.display = 'none';
       }
@@ -473,7 +479,6 @@
         logoutBtn.style.display = isAuthenticated() ? 'inline-block' : 'none';
         renderTable();
       } else {
-        // ensure participants content is hidden when not active
         document.getElementById('participants').style.display = (isAuthenticated() && id === 'participants') ? '' : 'none';
       }
 
@@ -578,48 +583,14 @@
       const age = calculateAge(new Date(birthday));
       const today = new Date().toISOString().split('T')[0];
 
-      const list = loadDay(today);
-      let idx = loadIndex();
-
+      // compute composite key and find existing participant by scanning registrations
       const composite = `${firstName.toLowerCase()}|${lastName.toLowerCase()}|${birthday}`;
       let participantId = findParticipantIdByNameBirthday(firstName, lastName, birthday);
 
-      if(participantId){
-        idx = loadIndex();
-        const p = idx[participantId];
-        p.attendanceCount = (p.attendanceCount || 0) + 1;
-        p.lastRegisteredDate = today;
-        p.registrations = p.registrations || [];
-        p.registrations.push(today);
-        p.email = email || p.email;
-        p.phone = phoneCheck.digits || p.phone;
-        p.address = address || p.address;
-        saveIndex(idx);
-      } else {
-        idx = loadIndex();
-        participantId = composite;
-        idx[participantId] = {
-          participantId,
-          firstName,
-          lastName,
-          middleInitial,
-          suffix,
-          birthday,
-          age,
-          address,
-          email,
-          phone: phoneCheck.digits || cleanedPhone,
-          attendanceCount: 1,
-          registrations: [today],
-          lastRegisteredDate: today,
-          validatedCount: 0
-        };
-        saveIndex(idx);
-      }
-
+      // create per-day registration entry (unique registration id)
       const registration = {
         id: counter++,
-        participantId,
+        participantId: participantId || composite,
         firstName,
         lastName,
         middleInitial,
@@ -633,9 +604,12 @@
         registeredDate: today
       };
 
+      // save to today's list
+      const list = loadDay(today);
       list.push(registration);
       saveDay(list, today);
 
+      // rebuild index from all registrations so attendance counts reflect actual rows
       rebuildIndexFromRegistrations();
 
       form.reset();
@@ -644,8 +618,8 @@
       phoneMsg.style.display='none';
       showPopup('Registration recorded (attendance updated)', 'success');
 
-      // after registering, attempt to open participants tab (will require login)
-      switchTab('participants');
+      // NOTE: per request, do NOT automatically switch to Registered Participants tab after registering.
+      // If admin wants to view participants, they must click the tab and authenticate.
     });
 
     clearBtn.addEventListener('click', ()=>{ form.reset(); ageDisplay.textContent=''; emailMsg.style.display='none'; phoneMsg.style.display='none'; });
@@ -690,8 +664,11 @@
         return;
       }
       list.forEach(p => {
+        // Attendance is aggregated from index keyed by composite participantId
         const summary = idx[p.participantId] || {};
         const attendance = summary.attendanceCount || 1;
+
+        // show validation status per registration row only
         const validated = !!p.validated;
 
         const tr = document.createElement('tr');
@@ -880,17 +857,14 @@
     function logoutAdmin(){
       sessionStorage.removeItem('hipp_auth');
       logoutBtn.style.display = 'none';
-      // if currently on participants tab, switch back to registration
       const activeTab = tabs.find(t => t.classList.contains('active'));
       if(activeTab && activeTab.dataset.tab === 'participants'){
         switchTab('registration');
       }
-      // silent logout (no popup) when triggered by navigation back to registration
     }
     window.logoutAdmin = logoutAdmin;
 
     logoutBtn.addEventListener('click', ()=>{
-      // explicit logout via button shows confirmation popup
       if(confirm('Logout admin?')) {
         logoutAdmin();
         showPopup('Logged out', 'success');
